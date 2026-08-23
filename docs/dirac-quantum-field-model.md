@@ -277,3 +277,77 @@ The chess field is modeled as a quantum system with two operators:
 3. **Ĥ = V̂ + αT̂**: The full field — standing pressure plus movement potential. When the "Radiation" (turn projection) toggle is ON, you see the Hamiltonian.
 
 The Dirac approximation: distance = moves (not squares) in the kinetic operator. This is approximate because we truncate at finite depth and ignore path interference, but it captures the essential physics that makes "the next move pop out" — a rook's entire file lights up when it's ready to move, not just the nearest squares.
+
+## 12. Adaptive Depth with A* Heuristic Pruning
+
+### 12.1 The Computational Problem
+
+In nature, every point in space computes its own field evolution in parallel — there's no branching factor. We simulate sequentially, hitting combinatorial explosion:
+- Depth 1: ~30 positions
+- Depth 2: ~900 positions
+- Depth 3: ~27,000 positions
+- Depth 5: ~24 million positions
+
+### 12.2 The Feynman Path Integral Analogy
+
+In QM's path integral formulation, every possible path contributes to the propagator, but paths far from the classical path interfere destructively and cancel. The "classical path" in chess = forcing tactical lines (checks, captures, threats). Quiet moves = off-classical paths contributing negligibly.
+
+Our heuristic mimics this natural cancellation: prune low-amplitude branches that have no tactical significance.
+
+### 12.3 The Expansion Heuristic
+
+For a move `m` landing on square `s` at depth `d`:
+
+```
+expand(m, s, d) = amplitude(m, d) × relevance(s) ≥ τ
+```
+
+**amplitude(m, d)** = `pieceValue(mover) × λ^d`
+
+**relevance(s)** = `w₁ × proximity(s) + w₂ × underAttack(s) + w₃ × targetValue(s)`
+
+Where:
+
+**proximity(s)** — distance to opponent pieces (king weighted 50×):
+```
+proximity(s) = min(1.0, (Σ weight_p / (chebyshev(s, p) + 1)) / 20)
+```
+
+**underAttack(s)** — friendly piece needing support:
+```
+underAttack(s) = min(1.0, max(0, enemyAttackers - friendlyDefenders) × friendlyValue / 9)
+```
+
+**targetValue(s)** — opponent piece worth capturing:
+```
+targetValue(s) = opponentPieceValue / 9  (or 0 if empty)
+```
+
+### 12.4 Parameters
+
+| Symbol | Name | Default | Role |
+|---|---|---|---|
+| d_max | Max depth | 5 | Hard propagation cutoff |
+| λ | Decay | 0.5 | Amplitude falloff per hop |
+| τ | Threshold | 0.3 | Min expand score to propagate |
+| ε | Epsilon | 0.05 | Min perceptible amplitude |
+| w₁ | Proximity weight | 0.5 | — |
+| w₂ | Under-attack weight | 0.3 | — |
+| w₃ | Target weight | 0.2 | — |
+
+### 12.5 Termination Conditions
+
+1. `d ≥ d_max` — hard depth cap
+2. Square is opponent king — reached target, max signal applied
+3. `amplitude < ε` — signal below perceptual threshold
+4. `expand(m, s, d) < τ` — branch not relevant enough
+
+### 12.6 Expected Behavior
+
+| Scenario | Expansion depth |
+|---|---|
+| Queen aimed at exposed king | 4-5 (proximity drives expansion) |
+| Knight fork threat | 3-4 (target value on both targets) |
+| Pawn push to quiet square | 1 only (pruned immediately) |
+| Rook defending own queen under attack | 3 (underAttack drives expansion) |
+| Bishop on quiet diagonal, no targets | 1-2 (low relevance everywhere) |

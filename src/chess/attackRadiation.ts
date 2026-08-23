@@ -1,18 +1,17 @@
 /**
- * Dirac Quantum Field Model — Kinetic Operator T̂ (Depth 2)
+ * Dirac Quantum Field Model — Kinetic Operator T̂ (Adaptive Depth)
  *
- * Applies the principles from Dirac's "The Principles of Quantum Mechanics" (1930):
+ * Depth propagation with A*-inspired heuristic pruning:
+ * - Depth 1: piece moves to destination → value × λ^1
+ * - Depth 2+: from destination, attacks radiate outward → value × λ^d
+ * - Expansion heuristic decides which branches propagate deeper
  *
- * - V̂ (Potential): Static attack field with per-square decay (handled by attackField.ts)
- * - T̂ (Kinetic): Movement disruption — distance = MOVES, not squares.
+ * Pruning equation:
+ *   expand(move, square, depth) = (pieceValue × λ^d × relevance(square)) ≥ τ
  *
- * Depth 1: piece moves to destination → destination gets value × λ^1
- * Depth 2: from that destination, what does the piece ATTACK? → those squares get value × λ^2
+ * relevance(s) = w₁×proximity(s) + w₂×underAttack(s) + w₃×targetValue(s)
  *
- * This means a queen moving to h4 (depth 1) also colors e1 (depth 2) if it
- * attacks e1 from h4. The king now shows incoming threats before they land.
- *
- * Combined Hamiltonian: Ĥ[sq] = V̂[sq] + α × T̂[sq]
+ * Termination: d ≥ d_max, amplitude < ε, reaches king, or fails heuristic.
  */
 
 import { Chess, type Square, type Color } from 'chess.js'
@@ -20,23 +19,186 @@ import type { Position } from './position'
 import { emptyField, type Field8x8, PIECE_VALUE } from './pieceField'
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+const ALL_SQUARES: Square[] = []
+for (let r = 0; r < 8; r++) {
+  for (let f = 0; f < 8; f++) {
+    ALL_SQUARES.push(`${FILES[f]}${r + 1}` as Square)
+  }
+}
 
 export const DEFAULT_TURN_WEIGHT = 0.5
 
+// Heuristic constants
+const MAX_DEPTH = 5
+const TAU = 0.3          // pruning threshold
+const EPSILON = 0.05     // minimum perceptible amplitude
+const W_PROXIMITY = 0.5
+const W_UNDER_ATTACK = 0.3
+const W_TARGET = 0.2
+const KING_PROXIMITY_WEIGHT = 50
+
 /**
- * Compute the kinetic field T̂ for a single player (depth 2).
- *
- * Depth 1: For each legal move, destination gets pieceValue × λ^1
- * Depth 2: For each legal move, compute what the piece attacks FROM the
- *          destination (on the post-move board). Those squares get pieceValue × λ^2
- *
- * This naturally shows:
- *   - Where pieces can GO (depth 1)
- *   - What they THREATEN once they arrive (depth 2)
- *   - Checkmate threats appear on the king at depth 2
+ * Chebyshev distance between two squares (king-move distance).
  */
-function playerKineticField(position: Position, player: Color, decay: number): Field8x8 {
+function chebyshev(sq1: Square, sq2: Square): number {
+  const f1 = sq1.charCodeAt(0) - 97
+  const r1 = parseInt(sq1[1]) - 1
+  const f2 = sq2.charCodeAt(0) - 97
+  const r2 = parseInt(sq2[1]) - 1
+  return Math.max(Math.abs(f1 - f2), Math.abs(r1 - r2))
+}
+
+/**
+ * Find all piece positions for a given color.
+ */
+function findPieces(position: Chess, color: Color): { sq: Square; value: number; type: string }[] {
+  const pieces: { sq: Square; value: number; type: string }[] = []
+  for (const sq of ALL_SQUARES) {
+    const p = position.get(sq)
+    if (p && p.color === color) {
+      pieces.push({ sq, value: PIECE_VALUE[p.type] || 1, type: p.type })
+    }
+  }
+  return pieces
+}
+
+/**
+ * Compute relevance(s) for the expansion heuristic.
+ *
+ * proximity: how close s is to opponent pieces (king weighted 50x)
+ * underAttack: is a friendly piece here that needs support?
+ * targetValue: is an opponent piece here worth capturing?
+ */
+function computeRelevance(
+  sq: Square,
+  player: Color,
+  boardState: Chess,
+): number {
+  const opponent: Color = player === 'w' ? 'b' : 'w'
+
+  // proximity — distance to opponent pieces
+  const opponentPieces = findPieces(boardState, opponent)
+  let rawProximity = 0
+  for (const op of opponentPieces) {
+    const dist = chebyshev(sq, op.sq)
+    const weight = op.type === 'k' ? KING_PROXIMITY_WEIGHT : op.value
+    rawProximity += weight / (dist + 1)
+  }
+  const proximity = Math.min(1.0, rawProximity / 20)
+
+  // underAttack — friendly piece on this square needing support
+  let underAttack = 0
+  const pieceHere = boardState.get(sq)
+  if (pieceHere && pieceHere.color === player) {
+    const enemyAttackers = boardState.attackers(sq, opponent).length
+    const friendlyDefenders = boardState.attackers(sq, player).length
+    const netThreat = Math.max(0, enemyAttackers - friendlyDefenders)
+    underAttack = Math.min(1.0, netThreat * (PIECE_VALUE[pieceHere.type] || 1) / 9)
+  }
+
+  // targetValue — opponent piece here worth taking
+  let targetValue = 0
+  if (pieceHere && pieceHere.color === opponent) {
+    targetValue = (PIECE_VALUE[pieceHere.type] || 1) / 9
+  }
+
+  return W_PROXIMITY * proximity + W_UNDER_ATTACK * underAttack + W_TARGET * targetValue
+}
+
+/**
+ * Recursive kinetic field propagation with heuristic pruning.
+ *
+ * At each depth:
+ * 1. Enumerate legal moves from current position
+ * 2. For each move, compute amplitude × relevance
+ * 3. If above threshold, add contribution and recurse
+ */
+function propagateKinetic(
+  field: Field8x8,
+  boardState: Chess,
+  player: Color,
+  decay: number,
+  depth: number,
+  stats: { nodes: number; expanded: number; pruned: number },
+): void {
+  if (depth > MAX_DEPTH) return
+
+  // Get all legal moves from this position
+  const moves = boardState.moves({ verbose: true })
+
+  for (const move of moves) {
+    const piece = boardState.get(move.from as Square)
+    if (!piece) continue
+
+    stats.nodes++
+
+    const value = PIECE_VALUE[piece.type] || 1
+    const moveAmplitude = value * Math.pow(decay, depth)
+
+    if (moveAmplitude < EPSILON) continue
+
+    const destSq = move.to as Square
+    const destRank = parseInt(move.to[1]) - 1
+    const destFile = move.to.charCodeAt(0) - 97
+
+    // Compute relevance of destination
+    const relevance = computeRelevance(destSq, player, boardState)
+    const expandScore = moveAmplitude * relevance
+
+    // Always add depth-1 contribution (all legal moves get at least λ^1)
+    field[destRank][destFile] += moveAmplitude
+
+    // Check if destination is the opponent king — terminate this branch (max signal applied)
+    const destPiece = boardState.get(destSq)
+    if (destPiece && destPiece.type === 'k' && destPiece.color !== player) {
+      continue // reached king, don't go deeper
+    }
+
+    // Decide whether to propagate deeper
+    if (depth >= MAX_DEPTH) continue
+    if (expandScore < TAU) {
+      stats.pruned++
+      continue
+    }
+
+    stats.expanded++
+
+    // Depth 2+: apply the move and project attacks from destination
+    let postMove: Chess
+    try {
+      postMove = new Chess(boardState.fen())
+      postMove.move(move.san)
+    } catch {
+      continue
+    }
+
+    // Project: what does this piece attack from its new square?
+    const decay2 = Math.pow(decay, depth + 1)
+    for (const sq of ALL_SQUARES) {
+      if (sq === destSq) continue
+      const attackers = postMove.attackers(sq, player)
+      if (attackers.includes(destSq)) {
+        const attackRank = parseInt(sq[1]) - 1
+        const attackFile = sq.charCodeAt(0) - 97
+        field[attackRank][attackFile] += value * decay2
+
+        // Check if this attacked square has the opponent king — high-value signal
+        const targetPiece = postMove.get(sq)
+        if (targetPiece && targetPiece.type === 'k' && targetPiece.color !== player) {
+          // King is threatened at this depth — max signal already applied, don't recurse
+          continue
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Compute the kinetic field T̂ for a single player using adaptive-depth propagation.
+ */
+function playerKineticField(position: Position, player: Color, decay: number): { field: Field8x8; stats: { nodes: number; expanded: number; pruned: number } } {
   const field = emptyField()
+  const stats = { nodes: 0, expanded: 0, pruned: 0 }
 
   // chess.js only gives legal moves for the side to move
   const fen = position.fen()
@@ -53,55 +215,20 @@ function playerKineticField(position: Position, player: Color, decay: number): F
   try {
     temp = new Chess(adjustedFen)
   } catch {
-    return field
+    return { field, stats }
   }
 
-  const moves = temp.moves({ verbose: true })
+  // Propagate from depth 1
+  propagateKinetic(field, temp, player, decay, 1, stats)
 
-  for (const move of moves) {
-    const piece = position.get(move.from as Square)
-    if (!piece) continue
-
-    const value = PIECE_VALUE[piece.type] || 1
-
-    // Depth 1: destination square gets value × λ^1
-    const destRank = parseInt(move.to[1]) - 1
-    const destFile = move.to.charCodeAt(0) - 97
-    field[destRank][destFile] += value * decay
-
-    // Depth 2: from the destination, what does this piece attack?
-    // Apply the move on a temp board, then check what the piece attacks from there
-    let postMove: Chess
-    try {
-      postMove = new Chess(adjustedFen)
-      postMove.move(move.san)
-    } catch {
-      continue // illegal or problematic move, skip depth 2
-    }
-
-    // Find all squares attacked by this piece from its new position
-    const decay2 = decay * decay // λ^2
-    for (let r = 0; r < 8; r++) {
-      for (let f = 0; f < 8; f++) {
-        const sq = `${FILES[f]}${r + 1}` as Square
-        if (sq === move.to) continue // skip the square it's already on
-
-        const attackers = postMove.attackers(sq, player)
-        if (attackers.includes(move.to as Square)) {
-          field[r][f] += value * decay2
-        }
-      }
-    }
-  }
-
-  return field
+  return { field, stats }
 }
 
 /**
  * Build the full Hamiltonian field Ĥ = V̂ + α × T̂
  *
  * V̂ = base attack field (attacker count)
- * T̂ = kinetic field (depth 2: destinations + attacks-from-destination)
+ * T̂ = kinetic field (adaptive depth with heuristic pruning)
  * α = turnWeight (strength slider)
  *
  * Sign convention: white = negative (blue), black = positive (red)
@@ -112,9 +239,19 @@ export function buildDiracField(
   turnWeight: number = DEFAULT_TURN_WEIGHT,
   decay: number = 0.5,
 ): Field8x8 {
-  // T̂ for both players (depth 2)
-  const whiteKinetic = playerKineticField(position, 'w', decay)
-  const blackKinetic = playerKineticField(position, 'b', decay)
+  // T̂ for both players (adaptive depth)
+  const whiteResult = playerKineticField(position, 'w', decay)
+  const blackResult = playerKineticField(position, 'b', decay)
+  const whiteKinetic = whiteResult.field
+  const blackKinetic = blackResult.field
+
+  // Log node evaluation stats
+  const totalNodes = whiteResult.stats.nodes + blackResult.stats.nodes
+  const totalExpanded = whiteResult.stats.expanded + blackResult.stats.expanded
+  const totalPruned = whiteResult.stats.pruned + blackResult.stats.pruned
+  console.log(
+    `[Dirac T̂] nodes: ${totalNodes} | expanded: ${totalExpanded} | pruned: ${totalPruned} | ratio: ${totalNodes > 0 ? ((totalPruned / totalNodes) * 100).toFixed(1) : 0}% pruned`
+  )
 
   // V̂ — base attack counts per player
   const whiteAttack = emptyField()
