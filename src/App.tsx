@@ -88,12 +88,7 @@ export default function App() {
           <div className="flex-1 overflow-hidden relative">
             <ChessField3D
               fields={fields}
-              showGradient={fieldOptions.showGradient}
-              showWireframe={fieldOptions.showWireframe}
-              discreteHeight={fieldOptions.discreteHeight ?? false}
               playerSide={fieldOptions.playerSide ?? 'w'}
-              selectedSquare={null}
-              onSquareHover={() => {}}
             />
           </div>
           <FieldControls options={fieldOptions} onChange={setFieldOptions} />

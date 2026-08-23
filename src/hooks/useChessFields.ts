@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { Position } from '@/chess/position'
 import { calculatePieceField, emptyField } from '@/chess/pieceField'
 import { calculateAttackField } from '@/chess/attackField'
-import { buildTurnExpandedAttackField } from '@/chess/turnExpansion'
+import { buildRadiationAttackField } from '@/chess/attackRadiation'
 import { buildInteractionAttackField, DEFAULT_INTERACTION_CONFIG } from '@/chess/interactionWeights'
 import { combineFields, type FieldConfig } from '@/chess/combinedField'
 import { calculateGradient } from '@/chess/gradient'
@@ -81,7 +81,7 @@ export function useChessFields(
     if (options.interactionWeighted) {
       attackField = buildInteractionAttackField(position, DEFAULT_INTERACTION_CONFIG)
     } else if (options.turnExpansion) {
-      attackField = buildTurnExpandedAttackField(position, options.turnExpansionWeight)
+      attackField = buildRadiationAttackField(position, options.turnExpansionWeight)
     } else {
       attackField = calculateAttackField(position)
     }

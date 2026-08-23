@@ -1,41 +1,20 @@
-import { useRef, useEffect } from 'react'
 import { Canvas, extend } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
 import { MeshLineGeometry, MeshLineMaterial } from 'meshline'
-import { Terrain } from './Terrain'
 import { DiscreteBlocks } from './DiscreteBlocks'
-import { GradientVectors } from './GradientVectors'
 import type { ChessFields } from '@/hooks/useChessFields'
 
 extend({ MeshLineGeometry, MeshLineMaterial })
 
 interface Props {
   fields: ChessFields
-  showGradient: boolean
-  showWireframe: boolean
-  discreteHeight: boolean
   playerSide: 'w' | 'b'
-  selectedSquare: string | null
-  onSquareHover: (sq: string | null) => void
 }
 
 export function ChessField3D({
   fields,
-  showGradient,
-  discreteHeight,
   playerSide,
-  selectedSquare: _selectedSquare,
-  onSquareHover: _onSquareHover,
 }: Props) {
-  const prevRef = useRef<Float32Array | null>(null)
-
-  // Track previous piece field for height animation
-  useEffect(() => {
-    return () => { prevRef.current = fields.pieceInterp }
-  })
-
-  const prevField = prevRef.current
-
   // Camera looks from behind your pieces
   const cameraZ = playerSide === 'w' ? 10 : -10
 
@@ -56,30 +35,11 @@ export function ChessField3D({
 
         {/* Board content */}
         <group>
-        {discreteHeight ? (
-          <DiscreteBlocks
-            absPieceField={fields.absPieceField}
-            pieceColors={fields.pieceColors}
-            attackField={fields.attackField}
-          />
-        ) : (
-          <Terrain
-            heightField={fields.pieceInterp}
-            colorField={fields.attackField}
-            prevHeightField={prevField}
-            discreteHeight={false}
-            rawPieceField={fields.absPieceField}
-            pieceColors={fields.pieceColors}
-          />
-        )}
-
-        {showGradient && (
-          <GradientVectors
-            gradient={fields.gradient}
-            field={fields.attackInterp}
-            visible={showGradient}
-          />
-        )}
+        <DiscreteBlocks
+          absPieceField={fields.absPieceField}
+          pieceColors={fields.pieceColors}
+          attackField={fields.attackField}
+        />
 
         {/* 8x8 grid overlay — MeshLine for reliable thick lines */}
         <group>
