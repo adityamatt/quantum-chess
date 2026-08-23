@@ -1,9 +1,13 @@
 import { useRef, useEffect } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, extend } from '@react-three/fiber'
 import { OrbitControls, Html } from '@react-three/drei'
+import { MeshLineGeometry, MeshLineMaterial } from 'meshline'
 import { Terrain } from './Terrain'
+import { DiscreteBlocks } from './DiscreteBlocks'
 import { GradientVectors } from './GradientVectors'
 import type { ChessFields } from '@/hooks/useChessFields'
+
+extend({ MeshLineGeometry, MeshLineMaterial })
 
 interface Props {
   fields: ChessFields
@@ -40,7 +44,6 @@ export function ChessField3D({
       <Canvas
         key={playerSide}
         camera={{ position: [0, 8, cameraZ], fov: 45 }}
-        shadows
         gl={{ antialias: true }}
         style={{ background: '#111827' }}
       >
@@ -48,20 +51,27 @@ export function ChessField3D({
         <directionalLight
           position={[5, 10, 5]}
           intensity={1.2}
-          castShadow
         />
         <directionalLight position={[-5, 5, -5]} intensity={0.3} />
 
         {/* Board content */}
         <group>
-        <Terrain
-          heightField={fields.pieceInterp}
-          colorField={fields.attackField}
-          prevHeightField={prevField}
-          discreteHeight={discreteHeight}
-          rawPieceField={fields.absPieceField}
-          pieceColors={fields.pieceColors}
-        />
+        {discreteHeight ? (
+          <DiscreteBlocks
+            absPieceField={fields.absPieceField}
+            pieceColors={fields.pieceColors}
+            attackField={fields.attackField}
+          />
+        ) : (
+          <Terrain
+            heightField={fields.pieceInterp}
+            colorField={fields.attackField}
+            prevHeightField={prevField}
+            discreteHeight={false}
+            rawPieceField={fields.absPieceField}
+            pieceColors={fields.pieceColors}
+          />
+        )}
 
         {showGradient && (
           <GradientVectors
@@ -71,36 +81,22 @@ export function ChessField3D({
           />
         )}
 
-        {/* 8x8 grid overlay — rendered above everything with depthTest off so always visible */}
+        {/* 8x8 grid overlay — MeshLine for reliable thick lines */}
         <group>
           {Array.from({ length: 9 }).map((_, i) => {
-            const pos = -4 + i // -4 to +4
+            const pos = -4 + i
             return (
               <group key={`grid-${i}`}>
                 {/* Vertical line (file boundary) */}
-                <line>
-                  <bufferGeometry>
-                    <bufferAttribute
-                      attach="attributes-position"
-                      args={[new Float32Array([pos, 0.05, -4, pos, 0.05, 4]), 3]}
-                      count={2}
-                      itemSize={3}
-                    />
-                  </bufferGeometry>
-                  <lineBasicMaterial color="#000000" linewidth={1} depthTest={false} transparent opacity={0.7} />
-                </line>
+                <mesh renderOrder={999}>
+                  <meshLineGeometry points={[pos, 0.05, -4, pos, 0.05, 4]} />
+                  <meshLineMaterial color="#000000" lineWidth={0.04} depthTest={false} transparent opacity={0.85} />
+                </mesh>
                 {/* Horizontal line (rank boundary) */}
-                <line>
-                  <bufferGeometry>
-                    <bufferAttribute
-                      attach="attributes-position"
-                      args={[new Float32Array([-4, 0.05, pos, 4, 0.05, pos]), 3]}
-                      count={2}
-                      itemSize={3}
-                    />
-                  </bufferGeometry>
-                  <lineBasicMaterial color="#000000" linewidth={1} depthTest={false} transparent opacity={0.7} />
-                </line>
+                <mesh renderOrder={999}>
+                  <meshLineGeometry points={[-4, 0.05, pos, 4, 0.05, pos]} />
+                  <meshLineMaterial color="#000000" lineWidth={0.04} depthTest={false} transparent opacity={0.85} />
+                </mesh>
               </group>
             )
           })}

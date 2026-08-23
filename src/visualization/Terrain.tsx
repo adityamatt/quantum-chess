@@ -34,7 +34,7 @@ function attackToColor(v: number, maxAbs: number): THREE.Color {
 }
 
 // Piece side colors
-const WHITE_PIECE_COLOR = new THREE.Color(0.95, 0.95, 0.9)
+const WHITE_PIECE_COLOR = new THREE.Color(0.95, 0.85, 0.5)
 const BLACK_PIECE_COLOR = new THREE.Color(0.15, 0.15, 0.2)
 
 export function Terrain({ heightField, colorField, prevHeightField, discreteHeight, rawPieceField, pieceColors }: Props) {
@@ -119,56 +119,33 @@ export function Terrain({ heightField, colorField, prevHeightField, discreteHeig
         const attackVal = colorField[fieldRank]?.[squareFile] ?? 0
 
         if (discreteHeight) {
-          // Discrete mode: top face = piece color, sides = attack field
-          // "Side" = vertex near the edge of its cell where a height difference exists
+          // Discrete mode: crisp split
+          // Interior of cell = piece side color (top face of block)
+          // Edge band of cell = attack field color (sides of block)
           const cellFracX = boardX - squareFile  // 0..1 within cell
           const cellFracZ = boardZ - squareRank  // 0..1 within cell
-          const edgeThreshold = 0.15  // fraction near edge considered "side"
+          const edge = 0.12  // hard edge band width
 
-          const nearEdge =
-            cellFracX < edgeThreshold || cellFracX > (1 - edgeThreshold) ||
-            cellFracZ < edgeThreshold || cellFracZ > (1 - edgeThreshold)
+          const onEdge =
+            cellFracX < edge || cellFracX > (1 - edge) ||
+            cellFracZ < edge || cellFracZ > (1 - edge)
 
-          // Check if there's a height difference at this edge (actual wall)
-          let hasWall = false
-          if (nearEdge && pieceColor !== 0) {
-            // Check neighbors for height difference
-            const myH = Math.abs(rawPieceField[fieldRank]?.[squareFile] ?? 0)
-            if (cellFracX < edgeThreshold && squareFile > 0) {
-              const neighborH = Math.abs(rawPieceField[fieldRank]?.[squareFile - 1] ?? 0)
-              if (Math.abs(myH - neighborH) > 0.1) hasWall = true
-            }
-            if (cellFracX > (1 - edgeThreshold) && squareFile < 7) {
-              const neighborH = Math.abs(rawPieceField[fieldRank]?.[squareFile + 1] ?? 0)
-              if (Math.abs(myH - neighborH) > 0.1) hasWall = true
-            }
-            if (cellFracZ < edgeThreshold && squareRank > 0) {
-              const neighborRank = 7 - (squareRank - 1)
-              const neighborH = Math.abs(rawPieceField[neighborRank]?.[squareFile] ?? 0)
-              if (Math.abs(myH - neighborH) > 0.1) hasWall = true
-            }
-            if (cellFracZ > (1 - edgeThreshold) && squareRank < 7) {
-              const neighborRank = 7 - (squareRank + 1)
-              const neighborH = Math.abs(rawPieceField[neighborRank]?.[squareFile] ?? 0)
-              if (Math.abs(myH - neighborH) > 0.1) hasWall = true
-            }
-          }
-
-          if (pieceColor !== 0 && !hasWall && h > 0.01) {
-            // Top face: piece side color
+          if (pieceColor !== 0 && !onEdge && h > 0.01) {
+            // Interior top face: piece side color
             const c = pieceColor === 1 ? WHITE_PIECE_COLOR : BLACK_PIECE_COLOR
             colAttr.setXYZ(i, c.r, c.g, c.b)
           } else {
-            // Side wall or empty: attack field color (shadow)
+            // Edge band or empty square: attack field color
             const c = attackToColor(attackVal, colorMaxAbs)
             colAttr.setXYZ(i, c.r, c.g, c.b)
           }
         } else {
-          // Smooth mode: top 50% of cell gets piece color
-          const cellFractionZ = boardZ - squareRank
-          const isTopPortion = cellFractionZ < 0.5
+          // Smooth mode: top 25% of cell gets piece color (hard boundary)
+          const cellFracX = boardX - squareFile
+          const cellFracZ = boardZ - squareRank
+          const inTop25 = cellFracZ < 0.25 && cellFracX >= 0.12 && cellFracX <= 0.88
 
-          if (pieceColor !== 0 && isTopPortion && h > 0.01) {
+          if (pieceColor !== 0 && inTop25 && h > 0.01) {
             const c = pieceColor === 1 ? WHITE_PIECE_COLOR : BLACK_PIECE_COLOR
             colAttr.setXYZ(i, c.r, c.g, c.b)
           } else {
@@ -187,7 +164,7 @@ export function Terrain({ heightField, colorField, prevHeightField, discreteHeig
   })
 
   return (
-    <mesh ref={meshRef} geometry={geometry} receiveShadow castShadow>
+    <mesh ref={meshRef} geometry={geometry}>
       <meshStandardMaterial
         vertexColors
         side={THREE.DoubleSide}

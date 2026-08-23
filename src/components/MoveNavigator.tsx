@@ -24,7 +24,7 @@ export function MoveNavigator({
 }: Props) {
   const activeRef = useRef<HTMLButtonElement | null>(null)
   const [playing, setPlaying] = useState(false)
-  const [interval, setInterval] = useState(1500) // ms between moves
+  const [interval, setInterval] = useState(800) // ms between moves
 
   // Auto-advance when playing
   useEffect(() => {

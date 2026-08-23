@@ -17,9 +17,9 @@ export const DEFAULT_VIEW_OPTIONS: FieldViewOptions = {
   attackWeight: 1.0,
   showGradient: false,
   showWireframe: false,
-  turnExpansion: false,
+  turnExpansion: true,
   turnExpansionWeight: 0.5,
-  discreteHeight: false,
+  discreteHeight: true,
   playerSide: 'w',
   interactionWeighted: false,
 }
