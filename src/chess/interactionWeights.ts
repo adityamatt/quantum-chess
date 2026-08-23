@@ -6,7 +6,7 @@ const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 // ── Piece values for ratio computation ───────────────────────────────────────
 
 const PIECE_VAL: Record<string, number> = {
-  p: 1, n: 3, b: 3, r: 5, q: 9, k: 1000,
+  p: 1, n: 3, b: 3, r: 5, q: 9, k: 12,
 }
 
 // ── Configurable parameters ──────────────────────────────────────────────────

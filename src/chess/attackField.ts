@@ -19,8 +19,22 @@ export function calculateAttackField(position: Position): Field8x8 {
       const sq = `${FILES[fileIdx]}${rankIdx + 1}` as Parameters<typeof position.attackers>[0]
       const whiteAttackers = position.attackers(sq, 'w').length
       const blackAttackers = position.attackers(sq, 'b').length
-      // white attacks = negative, black attacks = positive
-      field[rankIdx][fileIdx] = blackAttackers - whiteAttackers
+
+      // King exception: king can't be traded, so friendly defenders
+      // don't cancel out enemy attacks on the king's square
+      const piece = position.get(sq)
+      if (piece?.type === 'k') {
+        if (piece.color === 'w') {
+          // White king: only show black attacks (positive = danger for white king)
+          field[rankIdx][fileIdx] = blackAttackers
+        } else {
+          // Black king: only show white attacks (negative = danger for black king)
+          field[rankIdx][fileIdx] = -whiteAttackers
+        }
+      } else {
+        // Normal: net balance (black attacks - white attacks)
+        field[rankIdx][fileIdx] = blackAttackers - whiteAttackers
+      }
     }
   }
 

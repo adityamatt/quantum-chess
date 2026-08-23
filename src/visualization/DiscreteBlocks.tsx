@@ -1,17 +1,24 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { Html } from '@react-three/drei'
 
 const HEIGHT_SCALE = 0.15
 const WHITE_PIECE_COLOR = new THREE.Color(1, 0.5, 0.2)
 const BLACK_PIECE_COLOR = new THREE.Color(0.15, 0.15, 0.2)
 
 function attackToColor(v: number, maxAbs: number): THREE.Color {
-  const t = Math.max(-1, Math.min(1, v / (maxAbs || 1)))
-  if (t >= 0) {
-    if (t < 0.5) { const s = t * 2; return new THREE.Color(1, 1 - s * 0.3, 1 - s) }
-    else { const s = (t - 0.5) * 2; return new THREE.Color(1, 0.7 - s * 0.6, 0) }
+  // Use symmetric log normalization to prevent king's 50x from washing out everything else
+  // sign-preserving log: maps value to [-1, 1] range with log compression
+  const sign = v >= 0 ? 1 : -1
+  const absV = Math.abs(v)
+  const logMax = Math.log1p(maxAbs || 1)
+  const t = sign * Math.log1p(absV) / logMax
+  const clamped = Math.max(-1, Math.min(1, t))
+  if (clamped >= 0) {
+    if (clamped < 0.5) { const s = clamped * 2; return new THREE.Color(1, 1 - s * 0.3, 1 - s) }
+    else { const s = (clamped - 0.5) * 2; return new THREE.Color(1, 0.7 - s * 0.6, 0) }
   } else {
-    const a = -t
+    const a = -clamped
     if (a < 0.5) { const s = a * 2; return new THREE.Color(1 - s, 1 - s * 0.3, 1) }
     else { const s = (a - 0.5) * 2; return new THREE.Color(0, 0.7 - s * 0.5, 1 - s * 0.3) }
   }
@@ -43,6 +50,7 @@ export function DiscreteBlocks({ absPieceField, pieceColors, attackField }: Prop
       x: number; z: number; h: number
       pieceColor: number
       attackColor: THREE.Color
+      attackValue: number
     }[] = []
 
     for (let rank = 0; rank < 8; rank++) {
@@ -53,7 +61,8 @@ export function DiscreteBlocks({ absPieceField, pieceColors, attackField }: Prop
         const x = -4 + file + 0.5
         const z = 4 - rank - 0.5
         const ac = attackToColor(attackField[rank][file], colorMaxAbs)
-        result.push({ x, z, h, pieceColor: pieceColors[rank][file], attackColor: ac })
+        const av = attackField[rank][file]
+        result.push({ x, z, h, pieceColor: pieceColors[rank][file], attackColor: ac, attackValue: av })
       }
     }
     return result
@@ -61,7 +70,7 @@ export function DiscreteBlocks({ absPieceField, pieceColors, attackField }: Prop
 
   return (
     <group>
-      {blocks.map(({ x, z, h, pieceColor, attackColor }, i) => {
+      {blocks.map(({ x, z, h, pieceColor, attackColor, attackValue }, i) => {
         if (h < 0.001) {
           // Empty square: flat slab at ground level with attack color
           return (
@@ -72,8 +81,24 @@ export function DiscreteBlocks({ absPieceField, pieceColors, attackField }: Prop
           )
         }
 
-        // Occupied square: cuboid with custom face colors
-        return <PieceBlock key={i} x={x} z={z} h={h} pieceColor={pieceColor} attackColor={attackColor} />
+        // Occupied square: cuboid with label
+        return (
+          <group key={i}>
+            <PieceBlock x={x} z={z} h={h} pieceColor={pieceColor} attackColor={attackColor} />
+            {/* Debug label: attack field value on top of piece */}
+            <Html position={[x, h + 0.15, z]} center style={{ pointerEvents: 'none' }}>
+              <span style={{
+                fontSize: 9,
+                fontWeight: 'bold',
+                fontFamily: 'monospace',
+                color: pieceColor === 1 ? '#000' : '#fff',
+                textShadow: pieceColor === 1 ? '0 0 2px rgba(255,255,255,0.5)' : '0 0 2px rgba(0,0,0,0.5)',
+              }}>
+                {attackValue.toFixed(1)}
+              </span>
+            </Html>
+          </group>
+        )
       })}
     </group>
   )

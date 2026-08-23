@@ -6,7 +6,6 @@ export interface FieldViewOptions {
   turnExpansion: boolean
   turnExpansionWeight: number
   playerSide: 'w' | 'b'
-  interactionWeighted: boolean
 }
 
 export const DEFAULT_VIEW_OPTIONS: FieldViewOptions = {
@@ -15,7 +14,6 @@ export const DEFAULT_VIEW_OPTIONS: FieldViewOptions = {
   turnExpansion: true,
   turnExpansionWeight: 0.5,
   playerSide: 'w',
-  interactionWeighted: false,
 }
 
 interface Props {
@@ -78,16 +76,7 @@ export function FieldControls({ options, onChange }: Props) {
         </div>
       )}
 
-      {/* Interaction weighting toggle */}
-      <label className="flex items-center gap-1.5 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={options.interactionWeighted ?? false}
-          onChange={(e) => set('interactionWeighted', e.target.checked)}
-          className="accent-orange-400"
-        />
-        <span className="text-gray-400">Interaction Wt.</span>
-      </label>
+      {/* Interaction weighting is always active — baked into the attack field */}
     </div>
   )
 }

@@ -22,28 +22,22 @@ const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 export const DEFAULT_RADIATION_WEIGHT = 0.4
 
 /**
- * Get all squares that a piece of the given type would attack from a given square.
- * Uses a temporary board to compute attack patterns.
+ * Get all squares that a piece would attack from a given square,
+ * using the REAL board position for blocking (sliding pieces stop at occupied squares).
  */
-function getAttackPattern(pieceType: PieceSymbol, square: Square, color: Color): Square[] {
-  // Build a minimal valid FEN with kings out of the way + our piece on the target square
-  // Kings go on a1 and h8 (or shifted if square conflicts)
-  const wKingSq: Square = (square === 'a1' ? 'b1' : 'a1') as Square
-  const bKingSq: Square = (square === 'h8' ? 'g8' : 'h8') as Square
-
-  const temp = new Chess()
-  temp.clear()
-  temp.put({ type: 'k', color: 'w' }, wKingSq)
-  temp.put({ type: 'k', color: 'b' }, bKingSq)
+function getAttackPattern(position: Position, pieceType: PieceSymbol, square: Square, attackerSquare: Square, color: Color): Square[] {
+  // Copy the real position, move the piece to the target square
+  const temp = new Chess(position.fen())
+  temp.remove(attackerSquare)
+  temp.remove(square)
   temp.put({ type: pieceType, color }, square)
 
-  // Find all squares this piece attacks from here
+  // Find all squares this piece attacks from here (with real board blocking)
   const attacked: Square[] = []
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
       const sq = `${FILES[f]}${r + 1}` as Square
       if (sq === square) continue
-      // Check if our piece attacks this square
       const attackers = temp.attackers(sq, color)
       if (attackers.includes(square)) {
         attacked.push(sq)
@@ -89,8 +83,8 @@ function playerRadiationField(position: Position, player: Color): Field8x8 {
         const piece = position.get(attackerSq as Square)
         if (!piece) continue
 
-        // Get what this piece type would attack from the target square
-        const radiatedSquares = getAttackPattern(piece.type, sq, player)
+        // Get what this piece type would attack from the target square (real board blocking)
+        const radiatedSquares = getAttackPattern(position, piece.type, sq, attackerSq as Square, player)
 
         // Add radiation to each projected square
         for (const radSq of radiatedSquares) {
@@ -106,7 +100,7 @@ function playerRadiationField(position: Position, player: Color): Field8x8 {
 }
 
 /**
- * Calculate the current attack field for a single player (count of attackers per square).
+ * Calculate the current attack field for a single player (simple attacker count).
  */
 function playerAttackField(position: Position, player: Color): Field8x8 {
   const field = emptyField()
@@ -159,10 +153,23 @@ export function buildRadiationAttackField(
   const blackEffective = combineWithRadiation(blackAttack, blackRadiation, weight)
 
   // Signed: black - white
+  // King exception: on king's square, only show enemy pressure (defenders don't cancel)
   const field = emptyField()
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
-      field[r][f] = blackEffective[r][f] - whiteEffective[r][f]
+      const sq = `${FILES[f]}${r + 1}` as Square
+      const piece = position.get(sq)
+      if (piece?.type === 'k') {
+        if (piece.color === 'w') {
+          // White king: only black attacks matter (positive = danger)
+          field[r][f] = blackEffective[r][f]
+        } else {
+          // Black king: only white attacks matter (negative = danger)
+          field[r][f] = -whiteEffective[r][f]
+        }
+      } else {
+        field[r][f] = blackEffective[r][f] - whiteEffective[r][f]
+      }
     }
   }
 

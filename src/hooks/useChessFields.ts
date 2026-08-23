@@ -3,7 +3,6 @@ import type { Position } from '@/chess/position'
 import { calculatePieceField, emptyField } from '@/chess/pieceField'
 import { calculateAttackField } from '@/chess/attackField'
 import { buildRadiationAttackField } from '@/chess/attackRadiation'
-import { buildInteractionAttackField, DEFAULT_INTERACTION_CONFIG } from '@/chess/interactionWeights'
 import { combineFields, type FieldConfig } from '@/chess/combinedField'
 import { calculateGradient } from '@/chess/gradient'
 import { interpolateField } from '@/chess/interpolation'
@@ -16,14 +15,12 @@ export interface FieldOptions {
   attackWeight: number
   turnExpansion: boolean
   turnExpansionWeight: number
-  interactionWeighted: boolean
 }
 
 export const DEFAULT_FIELD_OPTIONS: FieldOptions = {
   attackWeight: 1.0,
-  turnExpansion: false,
+  turnExpansion: true,
   turnExpansionWeight: 0.5,
-  interactionWeighted: false,
 }
 
 export interface ChessFields {
@@ -78,11 +75,11 @@ export function useChessFields(
     const pieceColors = buildPieceColors(position)
 
     let attackField: number[][]
-    if (options.interactionWeighted) {
-      attackField = buildInteractionAttackField(position, DEFAULT_INTERACTION_CONFIG)
-    } else if (options.turnExpansion) {
+    if (options.turnExpansion) {
+      // Simple attack count base + interaction-weighted radiation projection
       attackField = buildRadiationAttackField(position, options.turnExpansionWeight)
     } else {
+      // Simple attack count: white attackers - black attackers per square
       attackField = calculateAttackField(position)
     }
 
@@ -101,5 +98,5 @@ export function useChessFields(
       attackInterp: interpolateField(attackField, TERRAIN_SIZE),
       combinedInterp: interpolateField(combinedField, TERRAIN_SIZE),
     }
-  }, [position, options.attackWeight, options.turnExpansion, options.turnExpansionWeight, options.interactionWeighted])
+  }, [position, options.attackWeight, options.turnExpansion, options.turnExpansionWeight])
 }
