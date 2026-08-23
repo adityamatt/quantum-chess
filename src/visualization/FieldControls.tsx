@@ -5,6 +5,7 @@ export interface FieldViewOptions {
   attackWeight: number
   turnExpansion: boolean
   turnExpansionWeight: number
+  decay: number
   playerSide: 'w' | 'b'
 }
 
@@ -13,6 +14,7 @@ export const DEFAULT_VIEW_OPTIONS: FieldViewOptions = {
   attackWeight: 1.0,
   turnExpansion: true,
   turnExpansionWeight: 0.5,
+  decay: 0.5,
   playerSide: 'w',
 }
 
@@ -57,22 +59,38 @@ export function FieldControls({ options, onChange }: Props) {
           onChange={(e) => set('turnExpansion', e.target.checked)}
           className="accent-green-400"
         />
-        <span className="text-gray-400">Radiation</span>
+        <span className="text-gray-400">Observation (T̂)</span>
       </label>
 
       {options.turnExpansion && (
         <div className="flex items-center gap-2">
-          <span className="text-gray-500">Strength:</span>
+          <span className="text-gray-500">α:</span>
           <input
             type="range"
             min={0.1}
             max={1.0}
             step={0.1}
-            value={options.turnExpansionWeight ?? 0.4}
+            value={options.turnExpansionWeight ?? 0.5}
             onChange={(e) => set('turnExpansionWeight', parseFloat(e.target.value))}
             className="w-20 accent-green-400"
           />
-          <span className="text-gray-300 font-mono w-8">{(options.turnExpansionWeight ?? 0.4).toFixed(1)}</span>
+          <span className="text-gray-300 font-mono w-8">{(options.turnExpansionWeight ?? 0.5).toFixed(1)}</span>
+        </div>
+      )}
+
+      {options.turnExpansion && (
+        <div className="flex items-center gap-2">
+          <span className="text-gray-500">λ:</span>
+          <input
+            type="range"
+            min={0.1}
+            max={0.9}
+            step={0.1}
+            value={options.decay ?? 0.5}
+            onChange={(e) => set('decay', parseFloat(e.target.value))}
+            className="w-20 accent-blue-400"
+          />
+          <span className="text-gray-300 font-mono w-8">{(options.decay ?? 0.5).toFixed(1)}</span>
         </div>
       )}
 

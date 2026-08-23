@@ -25,6 +25,7 @@ export default function App() {
     attackWeight: fieldOptions.attackWeight,
     turnExpansion: fieldOptions.turnExpansion ?? false,
     turnExpansionWeight: fieldOptions.turnExpansionWeight ?? 0.5,
+    decay: fieldOptions.decay ?? 0.5,
   })
 
   function handleMove(move: string): boolean {

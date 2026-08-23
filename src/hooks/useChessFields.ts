@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { Position } from '@/chess/position'
 import { calculatePieceField, emptyField } from '@/chess/pieceField'
 import { calculateAttackField } from '@/chess/attackField'
-import { buildRadiationAttackField } from '@/chess/attackRadiation'
+import { buildDiracField } from '@/chess/attackRadiation'
 import { combineFields, type FieldConfig } from '@/chess/combinedField'
 import { calculateGradient } from '@/chess/gradient'
 import { interpolateField } from '@/chess/interpolation'
@@ -15,12 +15,14 @@ export interface FieldOptions {
   attackWeight: number
   turnExpansion: boolean
   turnExpansionWeight: number
+  decay: number
 }
 
 export const DEFAULT_FIELD_OPTIONS: FieldOptions = {
   attackWeight: 1.0,
   turnExpansion: true,
   turnExpansionWeight: 0.5,
+  decay: 0.5,
 }
 
 export interface ChessFields {
@@ -76,10 +78,10 @@ export function useChessFields(
 
     let attackField: number[][]
     if (options.turnExpansion) {
-      // Simple attack count base + interaction-weighted radiation projection
-      attackField = buildRadiationAttackField(position, options.turnExpansionWeight)
+      // Dirac Hamiltonian: Ĥ = V̂ (attack count) + α × T̂ (kinetic/legal moves)
+      attackField = buildDiracField(position, options.turnExpansionWeight, options.decay)
     } else {
-      // Simple attack count: white attackers - black attackers per square
+      // Pure potential V̂: simple attack count per square
       attackField = calculateAttackField(position)
     }
 
@@ -98,5 +100,5 @@ export function useChessFields(
       attackInterp: interpolateField(attackField, TERRAIN_SIZE),
       combinedInterp: interpolateField(combinedField, TERRAIN_SIZE),
     }
-  }, [position, options.attackWeight, options.turnExpansion, options.turnExpansionWeight])
+  }, [position, options.attackWeight, options.turnExpansion, options.turnExpansionWeight, options.decay])
 }
