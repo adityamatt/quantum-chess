@@ -125,6 +125,7 @@ function propagateKinetic(
 
   // Get all legal moves from this position
   const moves = boardState.moves({ verbose: true })
+  const opponent: Color = player === 'w' ? 'b' : 'w'
 
   for (const move of moves) {
     const piece = boardState.get(move.from as Square)
@@ -132,26 +133,63 @@ function propagateKinetic(
 
     stats.nodes++
 
-    const value = PIECE_VALUE[piece.type] || 1
-    const moveAmplitude = value * Math.pow(decay, depth)
+    const moverValue = PIECE_VALUE[piece.type] || 1
 
-    if (moveAmplitude < EPSILON) continue
+    // Apply the move to compute threat from destination
+    let postMove: Chess
+    try {
+      postMove = new Chess(boardState.fen())
+      postMove.move(move.san)
+    } catch {
+      continue
+    }
 
     const destSq = move.to as Square
     const destRank = parseInt(move.to[1]) - 1
     const destFile = move.to.charCodeAt(0) - 97
 
-    // Compute relevance of destination
+    // Compute threat: sum of opponent piece values attacked from destination
+    let threat = 0
+    for (const sq of ALL_SQUARES) {
+      if (sq === destSq) continue
+      const attackers = postMove.attackers(sq, player)
+      if (attackers.includes(destSq)) {
+        const target = postMove.get(sq)
+        if (target && target.color === opponent) {
+          threat += PIECE_VALUE[target.type] || 1
+        }
+      }
+    }
+
+    // Amplitude = max(moverValue, threat) × λ^d
+    // Quiet move: just moverValue. Threatening move: threat value dominates.
+    const effectiveValue = Math.max(moverValue, threat)
+    const moveAmplitude = effectiveValue * Math.pow(decay, depth)
+
+    if (moveAmplitude < EPSILON) continue
+
+    // Compute relevance of destination for expansion decision
     const relevance = computeRelevance(destSq, player, boardState)
     const expandScore = moveAmplitude * relevance
 
-    // Always add depth-1 contribution (all legal moves get at least λ^1)
+    // Add contribution to destination square
     field[destRank][destFile] += moveAmplitude
 
-    // Check if destination is the opponent king — terminate this branch (max signal applied)
-    const destPiece = boardState.get(destSq)
+    // Debug: log moves near opponent king
+    const opponentKingSq = ALL_SQUARES.find(sq => {
+      const p = boardState.get(sq)
+      return p?.type === 'k' && p.color === opponent
+    })
+    if (opponentKingSq && chebyshev(destSq, opponentKingSq) <= 2) {
+      console.log(
+        `[T̂ d${depth}] ${player} ${piece.type}${move.from}-${move.to} | threat=${threat} eff=${effectiveValue} amp=${moveAmplitude.toFixed(2)} rel=${relevance.toFixed(2)} expand=${expandScore.toFixed(2)} ${expandScore >= TAU ? '✅' : '❌'}`
+      )
+    }
+
+    // Check if destination is the opponent king — terminate this branch
+    const destPiece = postMove.get(destSq)
     if (destPiece && destPiece.type === 'k' && destPiece.color !== player) {
-      continue // reached king, don't go deeper
+      continue
     }
 
     // Decide whether to propagate deeper
@@ -163,16 +201,7 @@ function propagateKinetic(
 
     stats.expanded++
 
-    // Depth 2+: apply the move and project attacks from destination
-    let postMove: Chess
-    try {
-      postMove = new Chess(boardState.fen())
-      postMove.move(move.san)
-    } catch {
-      continue
-    }
-
-    // Project: what does this piece attack from its new square?
+    // Depth 2+: project attacks from destination with threat-based amplitude
     const decay2 = Math.pow(decay, depth + 1)
     for (const sq of ALL_SQUARES) {
       if (sq === destSq) continue
@@ -180,12 +209,14 @@ function propagateKinetic(
       if (attackers.includes(destSq)) {
         const attackRank = parseInt(sq[1]) - 1
         const attackFile = sq.charCodeAt(0) - 97
-        field[attackRank][attackFile] += value * decay2
+        field[attackRank][attackFile] += effectiveValue * decay2
 
-        // Check if this attacked square has the opponent king — high-value signal
+        // Check if this attacked square has the opponent king
         const targetPiece = postMove.get(sq)
         if (targetPiece && targetPiece.type === 'k' && targetPiece.color !== player) {
-          // King is threatened at this depth — max signal already applied, don't recurse
+          console.log(
+            `[T̂ d${depth + 1}] ${player} KING HIT via ${piece.type}${move.from}-${move.to} → attacks ${sq} (king) | amp=${(effectiveValue * decay2).toFixed(2)}`
+          )
           continue
         }
       }
