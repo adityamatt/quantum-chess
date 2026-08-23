@@ -8,4 +8,7 @@ export default defineConfig({
       '@': '/Users/aditya/source/chess/src',
     },
   },
+  test: {
+    globals: true,
+  },
 })
