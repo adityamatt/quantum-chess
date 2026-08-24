@@ -41,13 +41,6 @@ export const SAMPLE_GAMES: SampleGame[] = [
     description: 'Black traps White into losing the queen',
     pgn: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qxg2 6. Rf1 Qxe4+ 7. Be2 Nf3#',
   },
-  // ── Smothered Mate ─────────────────────────────────────────────────────────
-  {
-    name: 'Smothered Mate',
-    category: 'Patterns',
-    description: 'Knight delivers mate — king trapped by own pieces',
-    pgn: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. d3 Be7 5. O-O O-O 6. Ng5 d5 7. exd5 Na5 8. Bb5 c6 9. dxc6 bxc6 10. Ba4 h6 11. Nf3 e4 12. Ne5 Qc7 13. d4 exd3 14. Nxd3 Bd6 15. b3 Ng4 16. h3 Qh2#',
-  },
   // ── Opera Game (Morphy) ────────────────────────────────────────────────────
   {
     name: 'Opera Game (Morphy)',
@@ -61,20 +54,6 @@ export const SAMPLE_GAMES: SampleGame[] = [
     category: 'Classics',
     description: 'Multiple piece sacrifices for a king hunt (1851)',
     pgn: '1. e4 e5 2. f4 exf4 3. Bc4 Qh4+ 4. Kf1 b5 5. Bxb5 Nf6 6. Nf3 Qh6 7. d3 Nh5 8. Nh4 Qg5 9. Nf5 c6 10. g4 Nf6 11. Rg1 cxb5 12. h4 Qg6 13. h5 Qg5 14. Qf3 Ng8 15. Bxf4 Qf6 16. Nc3 Bc5 17. Nd5 Qxb2 18. Bd6 Bxg1 19. e5 Qxa1+ 20. Ke2 Na6 21. Nxg7+ Kd8 22. Qf6+ Nxf6 23. Be7#',
-  },
-  // ── Back Rank Mate ─────────────────────────────────────────────────────────
-  {
-    name: 'Back Rank Mate',
-    category: 'Patterns',
-    description: 'Rook delivers mate on the back rank',
-    pgn: '1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Na5 10. Bc2 c5 11. d4 Qc7 12. d5 Bd7 13. Nbd2 c4 14. Nf1 Nc6 15. Ne3 Ne8 16. g4 g6 17. Kg2 Ng7 18. Ng3 f6 19. Nf5 Nxf5 20. gxf5 g5 21. Rh1 Rf7 22. Qe2 Rg7 23. Be3 Kf7 24. Rag1 Rg8 25. Qd2 Qd8 26. Nh2 Ke8 27. Ng4 Kd7 28. Qc1 Qf8 29. Nxf6+ Bxf6 30. Bxg5 Ne7 31. Bxf6 Rxg2+ 32. Rxg2 Rxg2+ 33. Kxg2 Nxf5 34. exf5 Bxh3+ 35. Kxh3 Qxf6',
-  },
-  // ── Greco's Mate ───────────────────────────────────────────────────────────
-  {
-    name: "Greco's Mate",
-    category: 'Patterns',
-    description: 'Bishop + rook coordinate on the castled king',
-    pgn: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. cxd4 Bb4+ 7. Nc3 Nxe4 8. O-O Bxc3 9. d5 Bf6 10. Re1 Ne7 11. Rxe4 d6 12. Bg5 Bxg5 13. Nxg5 h6 14. Qe2 hxg5 15. Re1 Be6 16. dxe6 f6 17. Re3 c6 18. Rh3 Rxh3 19. gxh3 g6 20. Qf3 Kf8 21. Qf4 Qd4 22. Qxd4',
   },
   // ── Evergreen Game (Anderssen) ─────────────────────────────────────────────
   {
