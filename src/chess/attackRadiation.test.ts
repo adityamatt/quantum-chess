@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { Chess, type Square } from 'chess.js'
+import { Chess } from 'chess.js'
 import { buildDiracField } from '@/chess/attackRadiation'
 
 // Helper: get field value for a square

@@ -6,10 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': '/Users/aditya/source/chess/src',
+      '@': new URL('./src', import.meta.url).pathname,
     },
-  },
-  test: {
-    globals: true,
   },
 })
