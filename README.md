@@ -20,7 +20,7 @@ The goal: anyone should be able to glance at the 3D field and see where the acti
 ## Demo
 
 
-<video src="https://github.com/adityamatt/quantum-chess/raw/main/docs/demo.mp4" controls></video>
+https://github.com/user-attachments/assets/c833055f-92b4-4f6c-adb7-db5629bb5ea4
 
 
 > *Fried Liver Attack with Observation (T̂) enabled — watch how the field shifts as tactical threats develop.*
