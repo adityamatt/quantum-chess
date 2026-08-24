@@ -90,4 +90,11 @@ export const SAMPLE_GAMES: SampleGame[] = [
     description: 'Black falls for a fork winning the queen',
     pgn: '1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qxg2 6. Rf1 Qxe4+ 7. Be2 Nf3#',
   },
+  // ── Berlin Defense ─────────────────────────────────────────────────────────
+  {
+    name: 'Berlin Defense',
+    category: 'Openings',
+    description: 'The "Berlin Wall" — solid defense that neutralizes White\'s initiative',
+    pgn: '1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. d4 Nd6 6. Bxc6 dxc6 7. dxe5 Nf5 8. Qxd8+ Kxd8 9. Nc3 Ke8 10. h3 Be7 11. Bg5 h6 12. Bxe7 Nxe7 13. Rad1 Be6 14. Nd4 Rd8',
+  },
 ]
