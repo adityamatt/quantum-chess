@@ -17,6 +17,29 @@ We apply the same decomposition to chess:
 
 The goal: anyone should be able to glance at the 3D field and see where the action is — like seeing a cat in a photo without scanning pixel by pixel.
 
+## Demo
+
+<video src="docs/demo.mp4" controls width="100%"></video>
+
+> *Fried Liver Attack with Observation (T̂) enabled — watch how the field shifts as tactical threats develop.*
+
+## Screenshots
+
+| Fool's Mate (before Qh4#) | Fried Liver (Bc4 — Italian setup) |
+|---|---|
+| ![Fool's Mate](docs/image1.png) | ![Fried Liver Bc4](docs/image2.png) |
+
+| Fried Liver (3...Nf6) | Fried Liver (4.Ng5 — knight attack) |
+|---|---|
+| ![Fried Liver Nf6](docs/image3.png) | ![Fried Liver Ng5](docs/image4.png) |
+
+The 3D field shows:
+- **Blue blocks** = white pressure (deeper blue = stronger)
+- **Orange/red blocks** = black pressure
+- **Block height** = piece material value
+- **Numeric labels** = exact field value per square
+- **Gold/dark caps** = piece ownership (top 25% of each block)
+
 ## Piece Notation & Values
 
 Standard algebraic notation throughout:
