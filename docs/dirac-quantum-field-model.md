@@ -351,3 +351,76 @@ targetValue(s) = opponentPieceValue / 9  (or 0 if empty)
 | Pawn push to quiet square | 1 only (pruned immediately) |
 | Rook defending own queen under attack | 3 (underAttack drives expansion) |
 | Bishop on quiet diagonal, no targets | 1-2 (low relevance everywhere) |
+
+## 13. Implemented Model: Sequence-Based Minimax
+
+*Sections 1–11 describe the theoretical framework. This section documents what is actually implemented.*
+
+### 13.1 V̂ — Actual Implementation
+
+The potential field V̂ is implemented as a **simple attacker count** (not the spatial-decay wave model described in sections 2–6):
+
+```
+V̂[sq] = blackAttackers(sq) - whiteAttackers(sq)
+```
+
+King exception: on king squares, only enemy attackers count (friendly defenders are ignored because the king cannot be traded).
+
+### 13.2 T̂ — Actual Implementation (Sequence-Based Minimax)
+
+The kinetic operator T̂ uses a **sequence-based minimax** search, not the simple "all legal moves at equal distance" model from section 2.2. It models how players actually think:
+
+1. **Pick candidates**: Top 10 moves sorted by immediate threat (checks first, then captures by MVV-LVA, then king proximity)
+2. **Alpha-beta search**: For each candidate, find the best line using minimax with alpha-beta pruning
+3. **Evaluate**: `netGain = evaluate(finalPosition) - evaluate(startPosition)`
+4. **Project**: Map the evaluation back along the sequence path with decay
+
+```typescript
+for each candidateMove:
+  line = alphaBeta(postMove, depth-1, -∞, +∞, false)
+  netGain = line.eval - baseEval
+  for (i, step) in fullSequence:
+    field[step.to] += netGain × λ^(i+1)
+```
+
+### 13.3 Evaluation Function
+
+```
+evaluate(position, player) = materialBalance + kingZonePressure + checkBonus
+```
+
+- Material: sum of own piece values - sum of opponent piece values
+- King zone: +0.5 per attacker on squares adjacent to opponent king
+- Check: +3 if opponent is in check
+- Checkmate: ±100
+
+### 13.4 Threat-Based Amplitude
+
+A move's field contribution is not just `moverValue × λ^d`. It's:
+
+```
+effectiveValue = max(moverValue, totalThreatenedOpponentMaterial)
+amplitude = effectiveValue × λ^depth
+```
+
+This makes sacrifices and forks visually dominant — a knight sacrifice that forks Q+R radiates at amplitude 14, not 3.
+
+### 13.5 Parameters (UI Controls)
+
+| Symbol | UI Label | Default | What it controls |
+|---|---|---|---|
+| α | α slider | 0.5 | Weight of T̂ kinetic vs V̂ potential |
+| λ | λ slider | 0.5 | Decay per depth in sequence projection |
+| — | Observation (T̂) | ON | Whether T̂ is computed at all |
+
+### 13.6 Divergence from Pure Dirac Model
+
+| Theoretical (sections 2–6) | Implemented |
+|---|---|
+| V̂ = spatial decay wave along attack rays | V̂ = simple attacker count (no decay) |
+| T̂ = all legal moves at equal distance | T̂ = minimax search, sequence evaluation projected back |
+| Distance = moves (all equidistant) | Depth = search depth, decay weights deeper moves less |
+| Superposition = independent accumulation | Minimax = opponent's best response reduces signal |
+| No evaluation function needed | Alpha-beta uses material + king pressure evaluation |
+
+The theoretical model (sections 2–6) remains the aspiration. The implemented model trades physical elegance for **correctness of tactical visualization** — sacrifices, forks, and checkmates show up because the minimax evaluation captures their true value.

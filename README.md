@@ -1,6 +1,6 @@
 # Chess Quantum Field Visualizer
 
-A 3D chess influence field visualization that models piece interactions as quantum wave mechanics — applying principles from Dirac's *The Principles of Quantum Mechanics* (1930) to make tactical patterns visually emergent.
+A 3D chess influence field visualization that models piece interactions using principles from Dirac's *The Principles of Quantum Mechanics* (1930) — sequence-based minimax with A*-inspired heuristic pruning to make tactical patterns visually emergent.
 
 ## The Idea
 
@@ -12,8 +12,8 @@ We apply the same decomposition to chess:
 
 | Mode | Physics | What it shows |
 |---|---|---|
-| **Potential** (Radiation OFF) | V̂ — standing wave | Where pieces project pressure now (per-square decay) |
-| **Observation** (Radiation ON) | Ĥ = V̂ + αT̂ | Standing pressure + movement disruption (per-move decay) |
+| **Potential** (Observation OFF) | V̂ — static pressure | Who attacks each square right now (attacker count) |
+| **Observation** (Observation ON) | Ĥ = V̂ + αT̂ | Static pressure + "if I do X, they do Y, I do Z" (minimax sequences) |
 
 The goal: anyone should be able to glance at the 3D field and see where the action is — like seeing a cat in a photo without scanning pixel by pixel.
 
@@ -21,9 +21,9 @@ The goal: anyone should be able to glance at the 3D field and see where the acti
 
 Standard algebraic notation throughout:
 
-| Symbol | Piece | Wave Amplitude | Movement |
+| Symbol | Piece | Value | Movement |
 |---|---|---|---|
-| **K** | King | 4 (source) | 1 square, any direction |
+| **K** | King | 11 | 1 square, any direction |
 | **Q** | Queen | 9 | Rank, file, or diagonal — unlimited |
 | **R** | Rook | 5 | Rank or file — unlimited |
 | **B** | Bishop | 3 | Diagonal — unlimited |
@@ -34,42 +34,72 @@ Squares: file letter (a–h) + rank number (1–8). Example: **e4**, **Nf3**, **
 
 ## The Model
 
-### Potential V̂ — Static Wave Field
+### Potential V̂ — Static Attack Field (Observation OFF)
 
-Each piece emits a wave along its attack directions:
-
-```
-Wave(piece p, target square) = sign(p) × value(p) × λ^distance_in_squares
-```
-
-- **sign**: white = −1 (blue), black = +1 (red)
-- **λ** (decay): 0.5 default — influence halves per square of travel
-- **Blocking**: waves stop at occupied squares (real board, not empty)
-- **Superposition**: all waves sum on each square — same side reinforces, opposite cancels
-- **King exception**: on K's square, only enemy waves count (K can't be traded)
-
-### Kinetic T̂ — Turn Disruption (Observation)
-
-When it IS the active player's turn, **distance = moves, not squares**:
+Simple attacker count per square:
 
 ```
-Kinetic(piece p, target) = sign(p) × value(p) × λ^moves_to_reach
+V̂[square] = blackAttackers(square) - whiteAttackers(square)
 ```
 
-A rook on a1 is **1 move** from a8 — same distance as a2. The entire reachable line lights up uniformly. This is the Dirac approximation: what matters is reachability in discrete time steps, not spatial separation.
+- Positive (red) = black controls
+- Negative (blue) = white controls
+- **King exception**: on king squares, only enemy attackers count (king can't be traded, defenders don't cancel)
+
+### Kinetic T̂ — Sequence-Based Minimax (Observation ON)
+
+Models how players actually think: "if I move X, they respond Y, I follow up Z."
+
+For each player:
+1. **Pick candidate moves** (top 10 by threat: checks, captures, king proximity)
+2. **Alpha-beta search** to find the best line (minimax with move ordering)
+3. **Evaluate** the net outcome of the sequence (material + king pressure)
+4. **Project** the evaluation back along the path with decay λ
+
+```
+For each candidate move:
+  line = alphaBeta(position, depth, α, β)
+  netGain = evaluate(endPosition) - evaluate(startPosition)
+  
+  For each step in the line:
+    field[step.destination] += netGain × λ^(step_index + 1)
+```
+
+#### Threat-Based Amplitude
+
+A move's signal strength = **how much the opponent loses if they don't respond**:
+
+```
+amplitude = max(moverValue, totalThreatenedValue) × λ^depth
+```
+
+A knight fork threatening Q(9) + R(5) radiates at amplitude 14, not 3.
+
+#### A* Heuristic Pruning
+
+Not all moves get deep search. Expansion decision:
+
+```
+expand(move) = amplitude × relevance(destination) ≥ τ
+
+relevance = 0.5 × proximity_to_king + 0.3 × friendly_piece_under_attack + 0.2 × target_value
+```
+
+- Queen aimed at exposed king → expands deep
+- Pawn push to quiet flank → pruned at depth 1
 
 ### Combined Ĥ = V̂ + αT̂
 
 ```
-Field[square] = Potential[square] + α × Kinetic[square]
+Field[square] = V̂[square] + α × T̂[square]
 ```
 
-α (turn weight) controls how much future-move disruption adds to the standing field.
+α controls how much the sequence-based kinetic adds to the base attack field.
 
 ## Visualization
 
 - **Block height** = piece material value (taller = more valuable piece)
-- **Block color** = wave field value (blue = white pressure, red = black pressure)
+- **Block color** = field value (blue = white pressure, red = black pressure)
 - **Top center 25%** = piece ownership (gold = white, dark = black)
 - **Color mapping** = symmetric log normalization (prevents Q from drowning out P)
 
@@ -78,43 +108,51 @@ Field[square] = Potential[square] + α × Kinetic[square]
 | Control | What it does |
 |---|---|
 | **You are: White / Black** | Flips board orientation + camera |
-| **☑ Radiation** | Toggles T̂ (turn projection) ON/OFF |
-| **Strength** slider | α — weight of kinetic layer (0.1–1.0) |
-| **Decay** slider | λ — spatial decay rate (0.1–0.9) |
+| **☑ Observation (T̂)** | Toggles kinetic layer ON/OFF |
+| **α** slider (0.1–1.0) | Weight of kinetic layer vs potential |
+| **λ** slider (0.1–0.9) | Decay per depth in sequence projection |
 
 ## Key Visual Patterns
 
 | Pattern | What it means |
 |---|---|
-| Deep blue zone | White dominates — multiple white waves converge |
+| Deep blue zone | White dominates — multiple white sequences converge |
 | Deep red zone | Black dominates — constructive black interference |
 | Neutral/white square | Contested — waves cancel (destructive interference) |
-| Piece block turning enemy color | Under attack and under-defended |
-| Whole file/diagonal lighting up (Radiation ON) | A R/B/Q can reach all those squares in 1 move |
-| K square deep enemy color | King is in danger — checkmate signature |
+| Piece block turning enemy color | Under attack, threatening sequences target it |
+| King square deep enemy color | King is in danger — checkmate/mating attack visible |
 
 ## Architecture
 
 ```
 src/
 ├── chess/
-│   ├── attackField.ts          # V̂ approximation (attacker count, king exception)
-│   ├── attackRadiation.ts      # T̂ approximation (one-hop projection, real board blocking)
-│   ├── interactionWeights.ts   # Piece-type interaction matrix
-│   └── waveField.ts            # (planned) Full V̂ with decay
+│   ├── attackField.ts            # V̂: attacker count per square (king exception)
+│   ├── attackRadiation.ts        # T̂: sequence-based minimax with A* pruning
+│   ├── attackRadiation.test.ts   # Behavioral tests (Fried Liver, Scholar's, Fool's Mate)
+│   ├── interactionWeights.ts     # Piece-type interaction matrix (legacy, unused)
+│   ├── turnExpansion.ts          # Legacy turn expansion (superseded by T̂)
+│   ├── combinedField.ts          # Field combination utilities
+│   ├── pieceField.ts             # Piece value field + constants
+│   ├── gradient.ts               # Gradient computation
+│   ├── interpolation.ts          # Field interpolation for smooth mode
+│   ├── position.ts               # Position type (= Chess from chess.js)
+│   └── sampleGames.ts            # 11 built-in PGN games
 ├── hooks/
-│   └── useChessFields.ts       # Field computation orchestrator
+│   └── useChessFields.ts         # Field computation orchestrator
 ├── visualization/
-│   ├── ChessField3D.tsx        # Three.js 3D scene
-│   ├── DiscreteBlocks.tsx      # BoxGeometry cuboids per square
-│   └── FieldControls.tsx       # UI controls
-└── App.tsx                     # Layout + 2D board + PGN
+│   ├── ChessField3D.tsx          # Three.js 3D scene
+│   ├── DiscreteBlocks.tsx        # BoxGeometry cuboids per square
+│   └── FieldControls.tsx         # UI controls
+├── scripts/
+│   └── test-field.ts             # CLI test engine (npx tsx scripts/test-field.ts)
+└── App.tsx                       # Layout + 2D board + PGN
 ```
 
 ## Documentation
 
-- [`docs/wave-field-model.md`](docs/wave-field-model.md) — Wave superposition model (V̂)
-- [`docs/dirac-quantum-field-model.md`](docs/dirac-quantum-field-model.md) — Dirac QM formulation (V̂ + T̂)
+- [`docs/wave-field-model.md`](docs/wave-field-model.md) — Original wave superposition model (V̂ theory)
+- [`docs/dirac-quantum-field-model.md`](docs/dirac-quantum-field-model.md) — Dirac QM formulation (V̂ + T̂ + adaptive depth + A* pruning)
 
 ## Stack
 
@@ -127,13 +165,20 @@ npm install
 npm run dev
 ```
 
+## Testing
+
+```bash
+npx vitest run              # Unit tests (11 behavioral assertions)
+npx tsx scripts/test-field.ts  # Manual field inspection (Fried Liver + Scholar's Mate)
+```
+
 ## The Approximation
 
-This model is an *approximation* of Dirac's equation applied to a discrete, deterministic system:
+This model applies Dirac's quantum mechanics to a discrete, deterministic system:
 
 1. **Discrete time** — moves are integers, not continuous
-2. **No path interference** — a square reachable via multiple routes doesn't get amplitude enhancement (we take min-distance)
-3. **Finite depth** — truncated at depth 1–3 (full game tree is intractable)
-4. **Deterministic collapse** — in QM, collapse is probabilistic; in chess, the player *chooses*
+2. **Finite depth** — alpha-beta search truncated at configurable depth (A* heuristic prunes uninteresting branches)
+3. **Deterministic collapse** — in QM, collapse is probabilistic; in chess, the player *chooses*
+4. **Sequence evaluation** — the "measurement" returns the net material + positional gain of the best line
 
-Despite these approximations, the model preserves the essential physics: superposition before measurement, collapse upon action, and the distinction between spatial potential and temporal kinetics.
+Despite these approximations, the model preserves the essential physics: superposition before measurement, collapse upon action, and the distinction between spatial potential (V̂) and temporal kinetics (T̂).
