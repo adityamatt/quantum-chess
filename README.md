@@ -1,5 +1,7 @@
 # Chess Quantum Field Visualizer
 
+**[▶ Try it live](https://adityamatt.github.io/quantum-chess/)**
+
 A 3D chess influence field visualization that models piece interactions using principles from Dirac's *The Principles of Quantum Mechanics* (1930) — sequence-based minimax with A*-inspired heuristic pruning to make tactical patterns visually emergent.
 
 ## The Idea
