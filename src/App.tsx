@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useChessPosition } from '@/hooks/useChessPosition'
 import { useChessFields } from '@/hooks/useChessFields'
 import { usePgnGame } from '@/hooks/usePgnGame'
@@ -20,6 +20,10 @@ export default function App() {
   const activePosition = useMemo(() => parseFen(activeFen), [activeFen])
 
   const [fieldOptions, setFieldOptions] = useState<FieldViewOptions>(DEFAULT_VIEW_OPTIONS)
+  const [splitPercent, setSplitPercent] = useState(50)
+  const [fieldFullscreen, setFieldFullscreen] = useState(false)
+  const dragging = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const fields = useChessFields(activePosition, {
     attackWeight: fieldOptions.attackWeight,
@@ -35,15 +39,38 @@ export default function App() {
     return freePlay.makeMove(move)
   }
 
-  function handleGoTo(index: number) {
-    pgn.goTo(index)
-  }
-  function handleGoNext() {
-    pgn.goNext()
-  }
-  function handleGoPrev() {
-    pgn.goPrev()
-  }
+  function handleGoTo(index: number) { pgn.goTo(index) }
+  function handleGoNext() { pgn.goNext() }
+  function handleGoPrev() { pgn.goPrev() }
+
+  const handleMouseDown = useCallback(() => {
+    dragging.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }, [])
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragging.current || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const pct = ((e.clientX - rect.left) / rect.width) * 100
+    setSplitPercent(Math.max(20, Math.min(80, pct)))
+  }, [])
+
+  const handleMouseUp = useCallback(() => {
+    dragging.current = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }, [])
+
+  // Attach mouse listeners for drag
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [handleMouseMove, handleMouseUp])
 
   return (
     <div className="flex flex-col h-screen bg-gray-950">
@@ -60,30 +87,47 @@ export default function App() {
       </div>
 
       {/* Main panels */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden" ref={containerRef}>
         {/* Left: Chess board */}
-        <div className="w-1/2 border-r border-gray-700 flex flex-col">
-          <div className="px-3 py-1.5 text-xs text-gray-400 uppercase tracking-wide border-b border-gray-800 flex items-center gap-2">
-            Board
-            {pgn.game && (
-              <span className="text-yellow-500 text-xs normal-case font-normal">
-                · PGN{pgn.game.forkIndex !== null ? ' (variation)' : ''}
-              </span>
-            )}
+        {!fieldFullscreen && (
+          <div style={{ width: `${splitPercent}%` }} className="flex flex-col">
+            <div className="px-3 py-1.5 text-xs text-gray-400 uppercase tracking-wide border-b border-gray-800 flex items-center gap-2">
+              Board
+              {pgn.game && (
+                <span className="text-yellow-500 text-xs normal-case font-normal">
+                  · PGN{pgn.game.forkIndex !== null ? ' (variation)' : ''}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ChessBoard
+                fen={activeFen}
+                onMove={handleMove}
+                orientation={fieldOptions.playerSide === 'b' ? 'black' : 'white'}
+              />
+            </div>
           </div>
-          <div className="flex-1 overflow-hidden">
-            <ChessBoard
-              fen={activeFen}
-              onMove={handleMove}
-              orientation={fieldOptions.playerSide === 'b' ? 'black' : 'white'}
-            />
-          </div>
-        </div>
+        )}
+
+        {/* Draggable divider */}
+        {!fieldFullscreen && (
+          <div
+            onMouseDown={handleMouseDown}
+            className="w-1 bg-gray-700 hover:bg-blue-500 cursor-col-resize transition-colors flex-shrink-0"
+          />
+        )}
 
         {/* Right: 3D Field */}
-        <div className="w-1/2 flex flex-col">
-          <div className="px-3 py-1.5 text-xs text-gray-400 uppercase tracking-wide border-b border-gray-800">
-            3D Influence Field
+        <div style={{ width: fieldFullscreen ? '100%' : `${100 - splitPercent}%` }} className="flex flex-col">
+          <div className="px-3 py-1.5 text-xs text-gray-400 uppercase tracking-wide border-b border-gray-800 flex items-center justify-between">
+            <span>3D Influence Field</span>
+            <button
+              onClick={() => setFieldFullscreen(!fieldFullscreen)}
+              className="text-gray-400 hover:text-white transition-colors px-2.5 py-1 rounded hover:bg-gray-700 text-lg leading-none"
+              title={fieldFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            >
+              {fieldFullscreen ? '⊡' : '⊞'}
+            </button>
           </div>
           <div className="flex-1 overflow-hidden relative">
             <ChessField3D
